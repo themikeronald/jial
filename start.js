@@ -132,14 +132,22 @@ async function downloadBot() {
     }
 }
 
-// Cleanup temp directory
+// Cleanup temp files
 function cleanup() {
     try {
+        // Clean cache bot.js
         const botPath = path.join(TEMP_DIR, 'bot.js');
         if (fs.existsSync(botPath)) {
             fs.unlinkSync(botPath);
-            console.log(chalk.gray('\n🧹 Cleaned up temporary files'));
         }
+        
+        // Clean temp bot file in project root
+        const tempBotPath = path.join(__dirname, '.bot-temp.js');
+        if (fs.existsSync(tempBotPath)) {
+            fs.unlinkSync(tempBotPath);
+        }
+        
+        console.log(chalk.gray('\n🧹 Cleaned up temporary files'));
     } catch (error) {
         console.error(chalk.yellow('⚠️  Cleanup failed:', error.message));
     }
@@ -147,6 +155,16 @@ function cleanup() {
 
 // Main launcher
 async function launchBot() {
+    // Cleanup temp bot file from previous run
+    const tempBotPath = path.join(__dirname, '.bot-temp.js');
+    if (fs.existsSync(tempBotPath)) {
+        try {
+            fs.unlinkSync(tempBotPath);
+        } catch (e) {
+            // Ignore cleanup errors
+        }
+    }
+    
     const heap = calculateOptimalHeap();
     
     console.log('');
@@ -185,17 +203,24 @@ async function launchBot() {
         console.log(chalk.cyan('🚀 Starting bot with optimal heap...'));
         console.log('');
         
-        // Read bot code from downloaded file
-        const botCode = fs.readFileSync(botPath, 'utf8');
+        // SOLUTION: Copy bot.js to project root temporarily, then require it
+        // This ensures bot.js has proper __dirname pointing to project root
         
-        // Execute bot code inline in this process
-        // This way bot has access to all node_modules from start.js context
         try {
-            // Remove shebang if exists
-            const cleanCode = botCode.replace(/^#!.*\n/, '');
+            // Create temporary bot file in project root
+            const tempBotPath = path.join(__dirname, '.bot-temp.js');
             
-            // Execute the bot code
-            eval(cleanCode);
+            // Copy downloaded bot to project root
+            fs.copyFileSync(botPath, tempBotPath);
+            
+            // Clear require cache
+            delete require.cache[tempBotPath];
+            
+            // Require from project root - now __dirname will be correct
+            require(tempBotPath);
+            
+            // Note: We don't delete .bot-temp.js immediately because bot might still be running
+            // It will be cleaned up on next run or exit
             
             // Note: After eval, bot.js code will run immediately
             // Setup cleanup handlers
