@@ -1,1 +1,1 @@
-https://lcs.noou.eu.org
+http://localhost:3000
